@@ -117,6 +117,33 @@ resource "aws_ecs_task_definition" "app" {
           "awslogs-stream-prefix" = "ecs"
         }
       }
+    },
+    {
+      name      = "newrelic-infra"
+      image     = "newrelic/infrastructure:latest"
+      essential = false
+      environment = [
+        {
+          name  = "NRIA_LICENSE_KEY"
+          value = var.new_relic_license_key
+        },
+        {
+          name  = "NRIA_VERBOSE"
+          value = "0"
+        },
+        {
+          name  = "NRIA_OVERRIDE_HOSTNAME"
+          value = var.app_name
+        }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.app.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "newrelic"
+        }
+      }
     }
   ])
 
@@ -180,4 +207,30 @@ resource "aws_iam_role" "ecs_execution_role" {
 resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
   role       = aws_iam_role.ecs_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+# IAM Policy for New Relic Metadata
+resource "aws_iam_role_policy" "ecs_newrelic_metadata" {
+  name = "${var.app_name}-ecs-newrelic-metadata"
+  role = aws_iam_role.ecs_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "ecs:ListClusters",
+          "ecs:DescribeClusters",
+          "ecs:ListTasks",
+          "ecs:DescribeTasks",
+          "ecs:DescribeContainerInstances",
+          "ecs:ListContainerInstances",
+          "ecs:DescribeServices",
+          "ecs:ListServices"
+        ],
+        Resource = "*"
+      }
+    ]
+  })
 }
